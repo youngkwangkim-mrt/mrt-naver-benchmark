@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Performance Analysis - Flight Monitoring Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script>
+        // Multiple fallback strategies for Chart.js (UMD versions)
+        setTimeout(() => {
+            if (typeof Chart === 'undefined') {
+                console.warn('⚠️ Primary Chart.js CDN failed, trying fallback CDN...');
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
+                fallbackScript.onerror = function() {
+                    console.warn('⚠️ Fallback CDN failed, trying local version...');
+                    const localScript = document.createElement('script');
+                    localScript.src = '/lib/chart.min.js';
+                    localScript.onerror = function() {
+                        console.error('❌ All Chart.js sources failed');
+                    };
+                    document.head.appendChild(localScript);
+                };
+                document.head.appendChild(fallbackScript);
+            }
+        }, 1000);
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header h1 i {
+            color: #667eea;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+        }
+
+        .navigation {
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .nav-link:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .time-period-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .period-btn {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            color: #4a5568;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .period-btn:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+            transform: translateY(-2px);
+        }
+
+        .period-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .refresh-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .refresh-btn {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-btn:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            color: #2d3748;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .long-haul-title {
+            color: #e53e3e;
+        }
+
+        .short-haul-title {
+            color: #38a169;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border-left: 4px solid #e2e8f0;
+        }
+
+        .stat-card.requests {
+            border-left-color: #3182ce;
+        }
+
+        .stat-card.avg-time {
+            border-left-color: #805ad5;
+        }
+
+        .stat-card.success-rate {
+            border-left-color: #38a169;
+        }
+
+        .stat-card.range {
+            border-left-color: #d69e2e;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #718096;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+            margin-top: 20px;
+        }
+
+        .loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 350px;
+            color: #718096;
+        }
+
+        .loading-state i {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #feb2b2;
+        }
+
+        .no-data {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 350px;
+            color: #718096;
+        }
+
+        .no-data i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .time-range-info {
+            background: #edf2f7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #4a5568;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .time-period-selector {
+                justify-content: center;
+            }
+            
+            .refresh-controls {
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header, .dashboard-section {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .chart-container {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .period-btn {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="navigation">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Dashboard
+                </a>
+            </div>
+            
+            <h1>
+                <i class="fas fa-chart-line"></i>
+                Route Performance Analysis
+            </h1>
+            <p>Compare Long Haul vs Short Haul route performance with detailed percentile analysis</p>
+            
+            <div class="controls">
+                <div class="time-period-selector">
+                    <button class="period-btn" data-period="1h">Last 1 Hour</button>
+                    <button class="period-btn" data-period="6h">Last 6 Hours</button>
+                    <button class="period-btn active" data-period="24h">Last 24 Hours</button>
+                    <button class="period-btn" data-period="7d">Last 7 Days</button>
+                </div>
+                
+                <div class="refresh-controls">
+                    <span id="lastUpdated">Loading...</span>
+                    <button class="refresh-btn" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+        
+        <div id="timeRangeInfo" class="time-range-info" style="display: none;"></div>
+
+        <div class="dashboard-grid">
+            <!-- Long Haul Dashboard -->
+            <div class="dashboard-section">
+                <h2 class="section-title long-haul-title">
+                    <i class="fas fa-globe"></i>
+                    Long Haul Routes
+                </h2>
+                
+                <div class="stats-grid" id="longHaulStats">
+                    <div class="stat-card requests">
+                        <div class="stat-value" id="longHaulRequests">-</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                    <div class="stat-card avg-time">
+                        <div class="stat-value" id="longHaulAvgTime">-</div>
+                        <div class="stat-label">Avg Response</div>
+                    </div>
+                    <div class="stat-card success-rate">
+                        <div class="stat-value" id="longHaulSuccessRate">-</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat-card range">
+                        <div class="stat-value" id="longHaulRange">-</div>
+                        <div class="stat-label">Response Range</div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="longHaulChart"></canvas>
+                    <div id="longHaulLoading" class="loading-state">
+                        <i class="fas fa-spinner"></i>
+                        <div>Loading Long Haul performance data...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Short Haul Dashboard -->
+            <div class="dashboard-section">
+                <h2 class="section-title short-haul-title">
+                    <i class="fas fa-map-marker-alt"></i>
+                    Short Haul Routes
+                </h2>
+                
+                <div class="stats-grid" id="shortHaulStats">
+                    <div class="stat-card requests">
+                        <div class="stat-value" id="shortHaulRequests">-</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                    <div class="stat-card avg-time">
+                        <div class="stat-value" id="shortHaulAvgTime">-</div>
+                        <div class="stat-label">Avg Response</div>
+                    </div>
+                    <div class="stat-card success-rate">
+                        <div class="stat-value" id="shortHaulSuccessRate">-</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat-card range">
+                        <div class="stat-value" id="shortHaulRange">-</div>
+                        <div class="stat-label">Response Range</div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="shortHaulChart"></canvas>
+                    <div id="shortHaulLoading" class="loading-state">
+                        <i class="fas fa-spinner"></i>
+                        <div>Loading Short Haul performance data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="performance-analysis.js"></script>
+</body>
+</html> 
