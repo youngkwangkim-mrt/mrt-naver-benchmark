@@ -5,6 +5,7 @@ import {
   getFlightSearchInfo 
 } from '../services/flightService.js';
 import { insertFlightMonitoringRecord } from '../services/databaseService.js';
+import { getCurrentKSTISOString } from '../utils/timezone.js';
 import { 
   SEOUL_AIRPORTS, 
   DESTINATION_AIRPORTS, 
@@ -20,7 +21,7 @@ const router = express.Router();
  * Performs a random flight search and stores results
  */
 router.post('/monitor/random', async (req, res) => {
-  const startAt = new Date();
+  const startAt = getCurrentKSTISOString();
   
   try {
     console.log('🚀 Starting random flight monitoring...');
@@ -33,12 +34,12 @@ router.post('/monitor/random', async (req, res) => {
     
     // Perform flight search
     const searchResult = await searchFlights(searchParams);
-    const endAt = new Date();
+    const endAt = getCurrentKSTISOString();
     
-    // Prepare database record
+    // Prepare database record (times already in KST)
     const dbRecord = {
-      startAt: startAt.toISOString(),
-      endAt: endAt.toISOString(),
+      startAt: startAt, // Already in KST ISO string
+      endAt: endAt, // Already in KST ISO string
       elapsedSeconds: searchResult.elapsedSeconds,
       departureAirport: searchParams.departureAirport,
       arrivalAirport: searchParams.arrivalAirport,
@@ -83,9 +84,9 @@ router.post('/monitor/random', async (req, res) => {
       success: false,
       error: error.message,
       timing: {
-        startAt,
-        endAt,
-        elapsedMs: endAt.getTime() - startAt.getTime()
+        startAt, // KST ISO string
+        endAt, // KST ISO string
+        elapsedMs: 0 // Error case, no elapsed time available
       }
     });
   }
@@ -96,7 +97,7 @@ router.post('/monitor/random', async (req, res) => {
  * Performs a custom flight search with specified parameters
  */
 router.post('/monitor/custom', async (req, res) => {
-  const startAt = new Date();
+  const startAt = getCurrentKSTISOString();
   
   try {
     const { 
@@ -129,12 +130,12 @@ router.post('/monitor/custom', async (req, res) => {
     
     // Perform flight search
     const searchResult = await searchFlights(searchParams);
-    const endAt = new Date();
+    const endAt = getCurrentKSTISOString();
     
-    // Prepare database record
+    // Prepare database record (times already in KST)
     const dbRecord = {
-      startAt: startAt.toISOString(),
-      endAt: endAt.toISOString(),
+      startAt: startAt, // Already in KST ISO string
+      endAt: endAt, // Already in KST ISO string
       elapsedSeconds: searchResult.elapsedSeconds,
       departureAirport: searchParams.departureAirport,
       arrivalAirport: searchParams.arrivalAirport,
@@ -164,15 +165,15 @@ router.post('/monitor/custom', async (req, res) => {
           errorMessage: searchResult.errorMessage
         },
         timing: {
-          startAt,
-          endAt,
-          elapsedMs: endAt.getTime() - startAt.getTime()
+          startAt, // KST ISO string
+          endAt, // KST ISO string
+          elapsedMs: searchResult.elapsedSeconds * 1000 // Convert to milliseconds
         }
       }
     });
     
   } catch (error) {
-    const endAt = new Date();
+    const endAt = getCurrentKSTISOString();
     console.error('❌ Custom flight monitoring failed:', error);
     
     res.status(500).json({

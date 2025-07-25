@@ -1,4 +1,5 @@
 import express from 'express';
+import { getCurrentKSTISOString } from '../utils/timezone.js';
 import { 
   getRecentFlightRecords, 
   getFlightMonitoringStats, 
@@ -22,7 +23,8 @@ router.get('/recent', async (req, res) => {
     res.json({
       success: true,
       data: records,
-      count: records.length
+      count: records.length,
+      timestamp: getCurrentKSTISOString() // KST timestamp for response
     });
   } catch (error) {
     console.error('❌ Failed to fetch recent records:', error);
@@ -44,7 +46,8 @@ router.get('/stats', async (req, res) => {
     
     res.json({
       success: true,
-      data: stats
+      data: stats,
+      timestamp: getCurrentKSTISOString() // KST timestamp for response
     });
   } catch (error) {
     console.error('❌ Failed to fetch statistics:', error);
@@ -160,7 +163,7 @@ router.get('/recent-calls', async (req, res) => {
       data: records,
       count: records.length,
       limit: limit,
-      timestamp: new Date().toISOString()
+      timestamp: getCurrentKSTISOString() // KST timestamp for response
     });
   } catch (error) {
     console.error('❌ Failed to fetch recent API calls:', error);
@@ -192,7 +195,7 @@ router.get('/route-performance-analysis', async (req, res) => {
     res.json({
       success: true,
       data: analysisData,
-      timestamp: new Date().toISOString()
+      timestamp: getCurrentKSTISOString() // KST timestamp for response
     });
   } catch (error) {
     console.error('❌ Failed to fetch route performance analysis:', error);

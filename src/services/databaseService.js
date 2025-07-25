@@ -1,4 +1,13 @@
 import { supabase } from '../config/supabase.js';
+import { 
+  getCurrentKSTISOString, 
+  formatForDatabase, 
+  formatCallTimeKST, 
+  formatDatesKST,
+  convertDBTimestampToKST,
+  getKSTTimeRange,
+  formatIntervalLabelKST 
+} from '../utils/timezone.js';
 
 /**
  * Insert flight monitoring record into Supabase
@@ -10,8 +19,8 @@ export async function insertFlightMonitoringRecord(data) {
     
     const record = {
       id: uniqueId,
-      start_at: data.startAt,
-      end_at: data.endAt,
+      start_at: formatForDatabase(data.startAt), // Convert to KST for database
+      end_at: formatForDatabase(data.endAt), // Convert to KST for database
       elapsed_seconds: data.elapsedSeconds,
       departure_airport: data.departureAirport,
       arrival_airport: data.arrivalAirport,
@@ -413,10 +422,10 @@ export async function getRecentApiCalls(limit = 50) {
       throw error;
     }
 
-    // Format the data for the dashboard
+    // Format the data for the dashboard (all times in KST)
     const formattedData = data.map(record => ({
       id: record.id,
-      created_at: record.created_at,
+      created_at: convertDBTimestampToKST(record.created_at), // Convert to KST ISO string
       departure_airport: record.departure_airport,
       arrival_airport: record.arrival_airport,
       departure_date: record.departure_date,
@@ -427,10 +436,12 @@ export async function getRecentApiCalls(limit = 50) {
       http_status: record.http_status,
       error_message: record.error_message,
       raw_request: record.raw_request,
-      // Add formatted fields for display
-      call_time: formatCallTime(record.created_at),
+      start_at: convertDBTimestampToKST(record.start_at), // Convert to KST ISO string
+      end_at: convertDBTimestampToKST(record.end_at), // Convert to KST ISO string
+      // Add formatted fields for display (KST)
+      call_time: formatCallTimeKST(record.created_at),
       route: `${record.departure_airport} → ${record.arrival_airport}`,
-      dates: formatDates(record.departure_date, record.return_date, record.is_round_trip),
+      dates: formatDatesKST(record.departure_date, record.return_date, record.is_round_trip),
       trip_type: record.is_round_trip ? 'Round Trip' : 'One Way',
       route_type: record.is_long_haul_route ? 'Long Haul' : 'Short Haul',
       duration: `${record.elapsed_seconds?.toFixed(1) || 'N/A'} seconds`,
@@ -447,42 +458,7 @@ export async function getRecentApiCalls(limit = 50) {
   }
 }
 
-/**
- * Format call time for display
- */
-function formatCallTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-}
-
-/**
- * Format dates for display
- */
-function formatDates(departureDate, returnDate, isRoundTrip) {
-  if (!departureDate) return 'N/A';
-  
-  const depDate = new Date(departureDate).toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit'
-  });
-  
-  if (isRoundTrip && returnDate) {
-    const retDate = new Date(returnDate).toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit'
-    });
-    return `${depDate} to ${retDate}`;
-  }
-  
-  return depDate;
-}
+// Formatting functions moved to timezone utility module
 
 /**
  * Format HTTP status for display
@@ -532,39 +508,33 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
   try {
     console.log(`📊 Fetching route performance analysis for ${timePeriod}...`);
     
-    // Calculate time range based on period
-    const now = new Date();
-    let startTime = new Date();
+    // Calculate time range in KST
+    const timeRange = getKSTTimeRange(timePeriod);
     let intervalMinutes;
     
     switch (timePeriod) {
       case '1h':
-        startTime.setHours(now.getHours() - 1);
         intervalMinutes = 5; // 5-minute intervals
         break;
       case '6h':
-        startTime.setHours(now.getHours() - 6);
         intervalMinutes = 15; // 15-minute intervals
         break;
       case '24h':
-        startTime.setDate(now.getDate() - 1);
         intervalMinutes = 60; // 1-hour intervals
         break;
       case '7d':
-        startTime.setDate(now.getDate() - 7);
         intervalMinutes = 360; // 6-hour intervals
         break;
       default:
-        startTime.setDate(now.getDate() - 1);
         intervalMinutes = 60;
     }
     
-    // Fetch data from database
+    // Fetch data from database using KST time range
     const { data, error } = await supabase
       .from('naver_flight_monitoring')
       .select('*')
-      .gte('created_at', startTime.toISOString())
-      .lte('created_at', now.toISOString())
+      .gte('created_at', timeRange.start.toISOString())
+      .lte('created_at', timeRange.end.toISOString())
       .eq('http_status', 200) // Only successful requests
       .order('created_at', { ascending: true });
 
@@ -579,8 +549,8 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
     const longHaulData = data.filter(record => record.is_long_haul_route === true);
     const shortHaulData = data.filter(record => record.is_long_haul_route === false);
     
-    // Generate time intervals
-    const intervals = generateTimeIntervals(startTime, now, intervalMinutes);
+    // Generate time intervals in KST
+    const intervals = generateTimeIntervals(timeRange.start, timeRange.end, intervalMinutes);
     
     // Process data for each route type
     const longHaulAnalysis = processRouteTypeData(longHaulData, intervals, intervalMinutes);
@@ -601,8 +571,8 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
     const result = {
       timePeriod,
       timeRange: {
-        start: startTime.toISOString(),
-        end: now.toISOString()
+        start: timeRange.startISO, // KST ISO string with offset
+        end: timeRange.endISO // KST ISO string with offset
       },
       intervalMinutes,
       longHaul: {
@@ -661,8 +631,8 @@ function processRouteTypeData(data, intervals, intervalMinutes) {
       return recordTime >= intervalStart && recordTime < intervalEnd;
     });
     
-    // Format label based on interval
-    const label = formatIntervalLabel(intervalStart, intervalMinutes);
+    // Format label based on interval (KST)
+    const label = formatIntervalLabelKST(intervalStart, intervalMinutes);
     chartData.labels.push(label);
     
     if (intervalData.length > 0) {
@@ -706,28 +676,7 @@ function calculateSummaryStats(data, timePeriod) {
   };
 }
 
-/**
- * Format interval label for display
- */
-function formatIntervalLabel(date, intervalMinutes) {
-  if (intervalMinutes <= 60) {
-    // Show time for hourly or shorter intervals
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  } else {
-    // Show date and time for longer intervals
-    return date.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  }
-}
+// Format interval label function moved to timezone utility module
 
 /**
  * Generate demo data for route performance analysis
