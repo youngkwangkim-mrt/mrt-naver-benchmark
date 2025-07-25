@@ -5,13 +5,12 @@
 
 /**
  * Get current datetime in KST
- * @returns {Date} Current date/time in KST
+ * @returns {Date} Current date/time in KST timezone
  */
 export function getCurrentKST() {
   const now = new Date();
-  // Convert to KST (UTC+9)
-  const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-  return kstTime;
+  // Use proper timezone conversion
+  return new Date(now.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
 }
 
 /**
@@ -21,7 +20,8 @@ export function getCurrentKST() {
  */
 export function convertUTCtoKST(utcDateTime) {
   const utcDate = typeof utcDateTime === 'string' ? new Date(utcDateTime) : utcDateTime;
-  return new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+  // Use proper timezone conversion instead of manual offset
+  return new Date(utcDate.toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
 }
 
 /**
@@ -38,12 +38,17 @@ export function formatKSTISOString(dateTime) {
     date = dateTime;
   }
   
-  // Ensure we're working with KST
+  // Convert to KST and format with proper offset
   const kstDate = convertUTCtoKST(date);
+  const year = kstDate.getFullYear();
+  const month = String(kstDate.getMonth() + 1).padStart(2, '0');
+  const day = String(kstDate.getDate()).padStart(2, '0');
+  const hours = String(kstDate.getHours()).padStart(2, '0');
+  const minutes = String(kstDate.getMinutes()).padStart(2, '0');
+  const seconds = String(kstDate.getSeconds()).padStart(2, '0');
+  const milliseconds = String(kstDate.getMilliseconds()).padStart(3, '0');
   
-  // Format as ISO string and replace Z with +09:00
-  const isoString = kstDate.toISOString();
-  return isoString.replace('Z', '+09:00');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}+09:00`;
 }
 
 /**
@@ -51,20 +56,18 @@ export function formatKSTISOString(dateTime) {
  * @returns {string} Current KST in ISO format with +09:00
  */
 export function getCurrentKSTISOString() {
-  const now = new Date();
-  const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-  return formatKSTISOString(kstTime);
+  return formatKSTISOString(new Date());
 }
 
 /**
- * Format datetime for database storage (KST as ISO string)
+ * Format datetime for database storage (UTC timestamps)
  * @param {Date|string} dateTime - Date to format
- * @returns {string} KST datetime formatted for database
+ * @returns {string} UTC datetime formatted for database
  */
 export function formatForDatabase(dateTime = null) {
   const date = dateTime ? new Date(dateTime) : new Date();
-  const kstDate = convertUTCtoKST(date);
-  return kstDate.toISOString();
+  // Store as proper UTC timestamp - don't add KST offset
+  return date.toISOString();
 }
 
 /**
@@ -74,9 +77,8 @@ export function formatForDatabase(dateTime = null) {
  */
 export function formatCallTimeKST(timestamp) {
   const date = new Date(timestamp);
-  const kstDate = convertUTCtoKST(date);
   
-  return kstDate.toLocaleString('en-US', {
+  return date.toLocaleString('en-US', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -98,8 +100,7 @@ export function formatDatesKST(departureDate, returnDate, isRoundTrip) {
   if (!departureDate) return 'N/A';
   
   const depDate = new Date(departureDate);
-  const kstDepDate = convertUTCtoKST(depDate);
-  const depFormatted = kstDepDate.toLocaleDateString('en-US', {
+  const depFormatted = depDate.toLocaleDateString('en-US', {
     month: '2-digit',
     day: '2-digit',
     timeZone: 'Asia/Seoul'
@@ -107,8 +108,7 @@ export function formatDatesKST(departureDate, returnDate, isRoundTrip) {
   
   if (isRoundTrip && returnDate) {
     const retDate = new Date(returnDate);
-    const kstRetDate = convertUTCtoKST(retDate);
-    const retFormatted = kstRetDate.toLocaleDateString('en-US', {
+    const retFormatted = retDate.toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       timeZone: 'Asia/Seoul'
@@ -126,11 +126,9 @@ export function formatDatesKST(departureDate, returnDate, isRoundTrip) {
  * @returns {string} Formatted label
  */
 export function formatIntervalLabelKST(date, intervalMinutes) {
-  const kstDate = convertUTCtoKST(date);
-  
   if (intervalMinutes <= 60) {
     // Show time for hourly or shorter intervals
-    return kstDate.toLocaleTimeString('en-US', {
+    return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -138,7 +136,7 @@ export function formatIntervalLabelKST(date, intervalMinutes) {
     });
   } else {
     // Show date and time for longer intervals
-    return kstDate.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -152,10 +150,10 @@ export function formatIntervalLabelKST(date, intervalMinutes) {
 /**
  * Get time range in KST for performance analysis
  * @param {string} timePeriod - Time period (1h, 6h, 24h, 7d)
- * @returns {Object} Start and end times in KST
+ * @returns {Object} Start and end times in UTC for database queries with KST display
  */
 export function getKSTTimeRange(timePeriod) {
-  const now = getCurrentKST();
+  const now = new Date();
   let startTime = new Date(now);
   
   switch (timePeriod) {
@@ -185,7 +183,7 @@ export function getKSTTimeRange(timePeriod) {
 
 /**
  * Convert database timestamp to KST for API responses
- * @param {string} dbTimestamp - Database timestamp
+ * @param {string} dbTimestamp - Database timestamp (UTC)
  * @returns {string} KST ISO string with offset
  */
 export function convertDBTimestampToKST(dbTimestamp) {

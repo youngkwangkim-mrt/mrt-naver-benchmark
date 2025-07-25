@@ -19,8 +19,8 @@ export async function insertFlightMonitoringRecord(data) {
     
     const record = {
       id: uniqueId,
-      start_at: formatForDatabase(data.startAt), // Convert to KST for database
-      end_at: formatForDatabase(data.endAt), // Convert to KST for database
+      start_at: formatForDatabase(data.startAt), // Store as UTC in database
+      end_at: formatForDatabase(data.endAt), // Store as UTC in database
       elapsed_seconds: data.elapsedSeconds,
       departure_airport: data.departureAirport,
       arrival_airport: data.arrivalAirport,
