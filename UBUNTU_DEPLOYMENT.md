@@ -17,8 +17,11 @@ cd mrt-naver-benchmark
 # 배포 스크립트 실행 권한 부여
 chmod +x deploy.sh
 
-# 배포 실행
+# 빠른 배포 (권장)
 ./deploy.sh
+
+# 또는 패키지 업데이트 포함 배포
+UPDATE_PACKAGES=true ./deploy.sh
 ```
 
 ### 3. 환경 설정
@@ -42,8 +45,15 @@ pm2 restart naver-flight-monitoring
 
 ## 📋 수동 배포 (선택사항)
 
-### 1. 시스템 패키지 업데이트
+### 1. 시스템 패키지 업데이트 (선택사항)
 ```bash
+# 빠른 배포 (패키지 업데이트 없음)
+./deploy.sh
+
+# 전체 패키지 업데이트 포함
+UPDATE_PACKAGES=true ./deploy.sh
+
+# 또는 수동으로 업데이트
 sudo apt update && sudo apt upgrade -y
 ```
 
