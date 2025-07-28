@@ -2,11 +2,14 @@
 export const AIRPORTS = {
   // Seoul airports
   ICN: { name: 'Incheon International Airport', city: 'Seoul', region: 'Korea' },
+  SEL: { name: 'Seoul Metropolitan Area', city: 'Seoul', region: 'Korea' },
   
   // Asia
   NRT: { name: 'Narita International Airport', city: 'Tokyo', region: 'Asia' },
   HND: { name: 'Haneda Airport', city: 'Tokyo', region: 'Asia' },
+  TYO: { name: 'Tokyo Metropolitan Area', city: 'Tokyo', region: 'Asia' },
   KIX: { name: 'Kansai International Airport', city: 'Osaka', region: 'Asia' },
+  OSA: { name: 'Osaka Metropolitan Area', city: 'Osaka', region: 'Asia' },
   FUK: { name: 'Fukuoka Airport', city: 'Fukuoka', region: 'Asia' },
   CTS: { name: 'New Chitose Airport', city: 'Sapporo', region: 'Asia' },
   DAD: { name: 'Da Nang International Airport', city: 'Da Nang', region: 'Asia' },
@@ -41,11 +44,11 @@ export const AIRPORTS = {
 };
 
 // Seoul departure airports
-export const SEOUL_AIRPORTS = ['ICN'];
+export const SEOUL_AIRPORTS = ['ICN', 'SEL'];
 
 // Destination airports grouped by region
 export const DESTINATION_AIRPORTS = {
-  Asia: ['NRT', 'HND', 'KIX', 'FUK', 'CTS', 'DAD', 'BKK', 'CEB', 'SIN', 'BKI', 'CXR', 'HKG', 'SGN', 'TPE', 'CNX', 'ULN', 'HAN'],
+  Asia: ['NRT', 'HND', 'TYO', 'KIX', 'OSA', 'FUK', 'CTS', 'DAD', 'BKK', 'CEB', 'SIN', 'BKI', 'CXR', 'HKG', 'SGN', 'TPE', 'CNX', 'ULN', 'HAN'],
   Americas: ['LAX', 'JFK', 'SFO', 'LAS'],
   Europe: ['CDG', 'LHR', 'FCO', 'BCN', 'FRA'],
   Pacific: ['GUM', 'SPN']

@@ -93,6 +93,39 @@
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
+        .navigation {
+            margin-bottom: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .nav-link:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+
         .refresh-info {
             display: flex;
             align-items: center;
@@ -421,11 +454,21 @@
             </h1>
             <p>Monitor recent flight monitoring API calls with real-time status updates</p>
             
-            <div style="margin-bottom: 20px;">
-                <a href="/performance-analysis" style="display: inline-flex; align-items: center; gap: 8px; color: #667eea; text-decoration: none; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.3s ease; background: rgba(102, 126, 234, 0.1);" onmouseover="this.style.background='rgba(102, 126, 234, 0.2)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(102, 126, 234, 0.1)'; this.style.transform='translateY(0)';">
-                    <i class="fas fa-chart-line"></i>
-                    Route Performance Analysis
-                </a>
+            <div class="navigation">
+                <div class="nav-links">
+                    <a href="/" class="nav-link active">
+                        <i class="fas fa-list-alt"></i>
+                        Recent API Calls
+                    </a>
+                    <a href="performance-analysis.html" class="nav-link">
+                        <i class="fas fa-chart-line"></i>
+                        Performance Analysis
+                    </a>
+                    <a href="response-time-dashboard.html" class="nav-link">
+                        <i class="fas fa-clock"></i>
+                        Response Time Monitor
+                    </a>
+                </div>
             </div>
             
             <div class="controls">

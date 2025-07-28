@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>응답시간 모니터링 대시보드 - Naver Flight Benchmark</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js with fallback strategy -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script>
+        // Fallback loading strategy for Chart.js
+        setTimeout(() => {
+            if (typeof Chart === 'undefined') {
+                console.warn('⚠️ Primary Chart.js CDN failed, trying local version...');
+                const fallbackScript = document.createElement('script');
+                fallbackScript.src = '/lib/chart.min.js';
+                fallbackScript.onerror = function() {
+                    console.error('❌ All Chart.js sources failed');
+                };
+                document.head.appendChild(fallbackScript);
+            } else {
+                console.log('✅ Chart.js loaded successfully');
+            }
+        }, 1000);
+    </script>
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --info-color: #fd7e14;
+            --danger-color: #dc3545;
+            --dark-color: #343a40;
+            --light-bg: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+
+        .summary-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .summary-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            max-height: 300px;
+            width: 100%;
+        }
+
+        .chart-wrapper canvas {
+            max-height: 300px !important;
+        }
+
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .last-updated {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table th {
+            background-color: var(--dark-color);
+            color: white;
+            font-weight: 600;
+            border: none;
+            padding: 1rem;
+        }
+
+        .table td {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .status-connected {
+            background-color: var(--success-color);
+        }
+
+        .status-error {
+            background-color: var(--danger-color);
+        }
+
+        @media (max-width: 768px) {
+            .metric-value {
+                font-size: 1.5rem;
+            }
+            
+            .chart-container {
+                padding: 1rem;
+            }
+
+            .chart-wrapper {
+                max-height: 200px;
+            }
+
+            .chart-wrapper canvas {
+                max-height: 200px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>
+                Naver Flight Benchmark
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">대시보드</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="performance-analysis.html">성능 분석</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="response-time-dashboard.html">응답시간 모니터링</a>
+                    </li>
+                </ul>
+                <span class="navbar-text">
+                    <span class="status-indicator" id="connectionStatus"></span>
+                    <span id="lastUpdated" class="last-updated">마지막 업데이트: -</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        <!-- Settings Panel -->
+        <div class="settings-card">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        대시보드 설정
+                    </h5>
+                </div>
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="refreshInterval" class="form-label">갱신 주기</label>
+                            <select class="form-select form-select-sm" id="refreshInterval">
+                                <option value="5">5초</option>
+                                <option value="10">10초</option>
+                                <option value="20">20초</option>
+                                <option value="30" selected>30초</option>
+                                <option value="45">45초</option>
+                                <option value="60">60초</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">데이터 범위</label>
+                            <div class="form-control form-control-sm bg-light" readonly>
+                                <i class="fas fa-clock me-1"></i>
+                                최근 72시간
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span id="errorText"></span>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card summary-card h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="summary-icon bg-success me-3">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="metric-label">전체 평균 응답시간</div>
+                            <div class="metric-value text-success" id="overallAvgResponse">-</div>
+                            <small class="text-muted" id="overallRequestCount">-</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card summary-card h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="summary-icon bg-info me-3">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="metric-label">장거리 노선 평균</div>
+                            <div class="metric-value text-info" id="longHaulAvgResponse">-</div>
+                            <small class="text-muted" id="longHaulRequestCount">-</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card summary-card h-100">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="summary-icon bg-warning me-3">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="metric-label">단거리 노선 평균</div>
+                            <div class="metric-value text-warning" id="shortHaulAvgResponse">-</div>
+                            <small class="text-muted" id="shortHaulRequestCount">-</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row">
+            <!-- Long Haul Response Time Chart -->
+            <div class="col-12 mb-4">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="fas fa-globe me-2"></i>
+                        장거리 노선 응답시간 추이 (최근 72시간, 1시간 간격)
+                    </div>
+                    <div class="chart-wrapper" style="height: 400px;">
+                        <canvas id="longHaulChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Short Haul Response Time Chart -->
+            <div class="col-12 mb-4">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        단거리 노선 응답시간 추이 (최근 72시간, 1시간 간격)
+                    </div>
+                    <div class="chart-wrapper" style="height: 400px;">
+                        <canvas id="shortHaulChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Percentile Chart -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="fas fa-route me-2"></i>
+                        노선별 Percentile 비교 (최근 72시간 실제 데이터 기반)
+                    </div>
+                    <div class="chart-wrapper" style="height: 320px;">
+                        <canvas id="routePercentileChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Statistics Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="table-container">
+                    <div class="chart-title p-3">
+                        <i class="fas fa-table me-2"></i>
+                        노선별 상세 통계 (최근 72시간 실제 데이터 기반)
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>노선</th>
+                                    <th>중앙값 (초)</th>
+                                    <th>평균 (초)</th>
+                                    <th>최소값 (초)</th>
+                                    <th>최대값 (초)</th>
+                                    <th>요청 건수</th>
+                                </tr>
+                            </thead>
+                            <tbody id="route-stats-table">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="loading-spinner me-2"></div>
+                                        데이터를 불러오는 중...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Dashboard JavaScript -->
+    <script src="response-time-dashboard.js"></script>
+</body>
+</html> 

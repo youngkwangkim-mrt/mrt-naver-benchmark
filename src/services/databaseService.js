@@ -501,7 +501,7 @@ function truncateUrl(url, maxLength = 80) {
 
 /**
  * Get route performance analysis comparing Long Haul vs Short Haul routes
- * @param {string} timePeriod - Time period: '1h', '6h', '24h', '7d'
+ * @param {string} timePeriod - Time period: '1h', '6h', '24h', '72h', '7d'
  * @returns {Object} Performance data for both route types
  */
 export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
@@ -510,40 +510,41 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
     
     // Calculate time range in KST
     const timeRange = getKSTTimeRange(timePeriod);
-    let intervalMinutes;
+    const intervalMinutes = getIntervalMinutes(timePeriod);
     
-    switch (timePeriod) {
-      case '1h':
-        intervalMinutes = 5; // 5-minute intervals
-        break;
-      case '6h':
-        intervalMinutes = 15; // 15-minute intervals
-        break;
-      case '24h':
-        intervalMinutes = 60; // 1-hour intervals
-        break;
-      case '7d':
-        intervalMinutes = 360; // 6-hour intervals
-        break;
-      default:
-        intervalMinutes = 60;
+    // Fetch ALL data using pagination to overcome 1000 record limit
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data: pageData, error } = await supabase
+        .from('naver_flight_monitoring')
+        .select('*')
+        .gte('created_at', timeRange.start.toISOString())
+        .lte('created_at', timeRange.end.toISOString())
+        .eq('http_status', 200) // Only successful requests
+        .order('created_at', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error) {
+        console.error('❌ Failed to fetch route performance data:', error);
+        throw error;
+      }
+      
+      if (pageData && pageData.length > 0) {
+        allData = allData.concat(pageData);
+        hasMore = pageData.length === pageSize; // Continue if we got a full page
+        page++;
+      } else {
+        hasMore = false;
+      }
     }
     
-    // Fetch data from database using KST time range
-    const { data, error } = await supabase
-      .from('naver_flight_monitoring')
-      .select('*')
-      .gte('created_at', timeRange.start.toISOString())
-      .lte('created_at', timeRange.end.toISOString())
-      .eq('http_status', 200) // Only successful requests
-      .order('created_at', { ascending: true });
+    const data = allData;
 
-    if (error) {
-      console.error('❌ Failed to fetch route performance data:', error);
-      throw error;
-    }
-
-    console.log(`📈 Processing ${data.length} records for route performance analysis...`);
+    console.log(`📈 Processing ${data.length} records for ${timePeriod} route performance analysis (fetched from ${timeRange.start.toISOString()} to ${timeRange.end.toISOString()})...`);
     
     // Separate Long Haul and Short Haul data
     const longHaulData = data.filter(record => record.is_long_haul_route === true);
@@ -559,6 +560,9 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
     // Calculate summary statistics
     const longHaulStats = calculateSummaryStats(longHaulData, timePeriod);
     const shortHaulStats = calculateSummaryStats(shortHaulData, timePeriod);
+    
+    // Calculate individual route statistics
+    const routeStats = calculateRouteStats(data);
     
     // Generate demo data if not enough real data
     const hasEnoughData = data.length >= 10;
@@ -583,6 +587,7 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
         stats: shortHaulStats,
         chart: shortHaulAnalysis
       },
+      routeStats: routeStats, // Individual route statistics
       totalRecords: data.length,
       isRealData: true
     };
@@ -594,7 +599,31 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
     console.error('❌ Database service error in getRoutePerformanceAnalysis:', error);
     throw error;
   }
+} 
+
+/**
+ * Get interval minutes for a given time period
+ * @param {string} timePeriod - Time period ('1h', '6h', '24h', '72h', '7d')
+ * @returns {number} Interval in minutes
+ */
+function getIntervalMinutes(timePeriod) {
+  switch (timePeriod) {
+    case '1h':
+      return 5; // 5-minute intervals
+    case '6h':
+      return 15; // 15-minute intervals
+    case '24h':
+      return 60; // 1-hour intervals
+    case '72h':
+      return 60; // 1-hour intervals
+    case '7d':
+      return 360; // 6-hour intervals
+    default:
+      return 60;
+  }
 }
+
+
 
 /**
  * Generate time intervals for charting
@@ -602,6 +631,11 @@ export async function getRoutePerformanceAnalysis(timePeriod = '24h') {
 function generateTimeIntervals(startTime, endTime, intervalMinutes) {
   const intervals = [];
   const current = new Date(startTime);
+  
+  // For hourly intervals (60 minutes), align to the hour
+  if (intervalMinutes === 60) {
+    current.setMinutes(0, 0, 0); // Set to exact hour (minutes, seconds, milliseconds = 0)
+  }
   
   while (current <= endTime) {
     intervals.push(new Date(current));
@@ -676,6 +710,59 @@ function calculateSummaryStats(data, timePeriod) {
   };
 }
 
+/**
+ * Calculate individual route statistics
+ */
+function calculateRouteStats(data) {
+  // Group data by route
+  const routeGroups = {};
+  
+  data.forEach(record => {
+    const route = `${record.departure_airport}-${record.arrival_airport}`;
+    if (!routeGroups[route]) {
+      routeGroups[route] = [];
+    }
+    routeGroups[route].push(record);
+  });
+  
+  // Calculate stats for each route
+  const routeStats = {};
+  
+  Object.entries(routeGroups).forEach(([route, records]) => {
+    if (records.length > 0) {
+      const responseTimes = records.map(r => r.elapsed_seconds).sort((a, b) => a - b);
+      const successfulRequests = records.filter(r => r.http_status === 200).length;
+      
+      // Determine route type based on first record (they should all be the same for a route)
+      const isLongHaul = records[0].is_long_haul_route;
+      
+      routeStats[route] = {
+        totalRequests: records.length,
+        averageResponseTime: responseTimes.reduce((a, b) => a + b, 0) / records.length,
+        medianResponseTime: getPercentile(responseTimes, 50),
+        successRate: (successfulRequests / records.length) * 100,
+        fastestResponse: Math.min(...responseTimes),
+        slowestResponse: Math.max(...responseTimes),
+        p90ResponseTime: getPercentile(responseTimes, 90),
+        p95ResponseTime: getPercentile(responseTimes, 95),
+        p99ResponseTime: getPercentile(responseTimes, 99),
+        isLongHaul: isLongHaul,
+        routeType: isLongHaul ? '장거리' : '단거리'
+      };
+    }
+  });
+  
+  // Sort routes by total requests (most popular first)
+  const sortedRoutes = Object.entries(routeStats)
+    .sort(([,a], [,b]) => b.totalRequests - a.totalRequests)
+    .reduce((acc, [route, stats]) => {
+      acc[route] = stats;
+      return acc;
+    }, {});
+  
+  return sortedRoutes;
+}
+
 // Format interval label function moved to timezone utility module
 
 /**
@@ -685,6 +772,9 @@ function generateDemoRoutePerformanceData(intervals, timePeriod) {
   const labels = intervals.map((date, index) => {
     if (timePeriod === '1h' || timePeriod === '6h') {
       return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (timePeriod === '72h') {
+      // For 72h, show as exact hour (HH:00 format)
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(/:\d{2}$/, ':00');
     } else {
       return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false });
     }
