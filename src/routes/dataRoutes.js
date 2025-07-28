@@ -183,10 +183,10 @@ router.get('/route-performance-analysis', async (req, res) => {
     const timePeriod = req.query.period || '24h';
     
     // Validate time period parameter
-    if (!['1h', '6h', '24h', '7d'].includes(timePeriod)) {
+    if (!['1h', '6h', '24h', '72h', '7d'].includes(timePeriod)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid time period. Must be one of: 1h, 6h, 24h, 7d'
+        error: 'Invalid time period. Must be one of: 1h, 6h, 24h, 72h, 7d'
       });
     }
     
@@ -199,6 +199,63 @@ router.get('/route-performance-analysis', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Failed to fetch route performance analysis:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint to check data counts
+router.get('/test-counts', async (req, res) => {
+  try {
+    const { supabase } = await import('../config/supabase.js');
+    const { getKSTTimeRange } = await import('../utils/timezone.js');
+    
+    // Get total count
+    const { count: totalCount, error: totalError } = await supabase
+      .from('naver_flight_monitoring')
+      .select('*', { count: 'exact', head: true });
+    
+    if (totalError) throw totalError;
+    
+    // Get 72h count with no limit
+    const timeRange = getKSTTimeRange('72h');
+    const { count: count72h, error: error72h } = await supabase
+      .from('naver_flight_monitoring')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', timeRange.start.toISOString())
+      .lte('created_at', timeRange.end.toISOString())
+      .eq('http_status', 200);
+    
+    if (error72h) throw error72h;
+    
+    // Get actual data with range to test
+    const { data: actualData, error: dataError } = await supabase
+      .from('naver_flight_monitoring')
+      .select('*')
+      .gte('created_at', timeRange.start.toISOString())
+      .lte('created_at', timeRange.end.toISOString())
+      .eq('http_status', 200)
+      .order('created_at', { ascending: true })
+      .range(0, 50000);
+    
+    if (dataError) throw dataError;
+    
+    res.json({
+      success: true,
+      data: {
+        totalRecordsInDB: totalCount,
+        recordsIn72h: count72h,
+        actualDataFetched: actualData.length,
+        timeRange: {
+          start: timeRange.start.toISOString(),
+          end: timeRange.end.toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Test counts error:', error);
     res.status(500).json({
       success: false,
       error: error.message

@@ -127,13 +127,13 @@ export function formatDatesKST(departureDate, returnDate, isRoundTrip) {
  */
 export function formatIntervalLabelKST(date, intervalMinutes) {
   if (intervalMinutes <= 60) {
-    // Show time for hourly or shorter intervals
+    // Show time for hourly or shorter intervals - display as exact hour (00 minutes)
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
       timeZone: 'Asia/Seoul'
-    });
+    }).replace(/:\d{2}$/, ':00'); // Replace minutes with :00 for clean hourly display
   } else {
     // Show date and time for longer intervals
     return date.toLocaleDateString('en-US', {
@@ -165,6 +165,9 @@ export function getKSTTimeRange(timePeriod) {
       break;
     case '24h':
       startTime.setDate(now.getDate() - 1);
+      break;
+    case '72h':
+      startTime.setDate(now.getDate() - 3);
       break;
     case '7d':
       startTime.setDate(now.getDate() - 7);
