@@ -653,7 +653,8 @@ function processRouteTypeData(data, intervals, intervalMinutes) {
     labels: [],
     p50: [],
     p90: [],
-    p95: []
+    p95: [],
+    p99: []
   };
   
   intervals.forEach((intervalStart, index) => {
@@ -674,10 +675,12 @@ function processRouteTypeData(data, intervals, intervalMinutes) {
       chartData.p50.push(getPercentile(responseTimes, 50));
       chartData.p90.push(getPercentile(responseTimes, 90));
       chartData.p95.push(getPercentile(responseTimes, 95));
+      chartData.p99.push(getPercentile(responseTimes, 99));
     } else {
       chartData.p50.push(null);
       chartData.p90.push(null);
       chartData.p95.push(null);
+      chartData.p99.push(null);
     }
   });
   
