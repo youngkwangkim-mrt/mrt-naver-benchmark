@@ -49,6 +49,7 @@ router.post('/monitor/random', async (req, res) => {
       arrivalDate: searchParams.returnDate,
       isRoundTrip: searchParams.isRoundTrip,
       isLongHaulRoute: searchParams.isLongHaul,
+      nonstop: searchParams.nonstop,
       httpStatus: searchResult.httpStatus,
       errorMessage: searchResult.errorMessage,
       rawRequest: searchResult.url // Store the complete request URL
@@ -109,7 +110,8 @@ router.post('/monitor/custom', async (req, res) => {
       arrivalAirport, 
       departureDate, 
       returnDate,
-      isRoundTrip = true 
+      isRoundTrip = true,
+      nonstop 
     } = req.body;
     
     // Validate required parameters
@@ -126,7 +128,8 @@ router.post('/monitor/custom', async (req, res) => {
       departureDate,
       returnDate: isRoundTrip ? returnDate : null,
       isRoundTrip,
-      isLongHaul: isLongHaulRoute(arrivalAirport.toUpperCase())
+      isLongHaul: isLongHaulRoute(arrivalAirport.toUpperCase()),
+      nonstop: nonstop || (Math.random() > 0.3 ? 'N' : 'Y') // Use provided value or 70% chance of connecting flights
     };
     
     const flightInfo = getFlightSearchInfo(searchParams);
@@ -148,6 +151,7 @@ router.post('/monitor/custom', async (req, res) => {
       arrivalDate: searchParams.returnDate,
       isRoundTrip: searchParams.isRoundTrip,
       isLongHaulRoute: searchParams.isLongHaul,
+      nonstop: searchParams.nonstop,
       httpStatus: searchResult.httpStatus,
       errorMessage: searchResult.errorMessage,
       rawRequest: searchResult.url // Store the complete request URL

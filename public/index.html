@@ -317,6 +317,26 @@
             color: #2f855a;
         }
 
+        .flight-type {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .flight-type.direct {
+            background: #bee3f8;
+            color: #2b6cb0;
+        }
+
+        .flight-type.non-direct {
+            background: #fed7aa;
+            color: #c05621;
+        }
+
         .error-cell {
             max-width: 200px;
             overflow: hidden;
@@ -514,6 +534,9 @@
                             <th data-sort="route_type">
                                 Route Type <i class="fas fa-sort"></i>
                             </th>
+                            <th data-sort="flight_type">
+                                Flight Type <i class="fas fa-sort"></i>
+                            </th>
                             <th data-sort="duration">
                                 Duration <i class="fas fa-sort"></i>
                             </th>
@@ -527,7 +550,7 @@
                     </thead>
                     <tbody id="callsTableBody">
                         <tr>
-                            <td colspan="8" class="loading">
+                            <td colspan="9" class="loading">
                                 <i class="fas fa-spinner"></i>
                                 <div>Loading recent API calls...</div>
                             </td>

@@ -151,6 +151,12 @@ class RecentCallsDashboard {
                         ${call.route_type}
                     </span>
                 </td>
+                <td>
+                    <span class="flight-type ${(call.is_direct === null || call.is_direct === true) ? 'direct' : 'non-direct'}">
+                        <i class="fas ${(call.is_direct === null || call.is_direct === true) ? 'fa-plane' : 'fa-route'}"></i>
+                        ${call.flight_type}
+                    </span>
+                </td>
                 <td>${call.duration}</td>
                 <td>
                     <span class="${call.status_display.class}">
@@ -179,6 +185,9 @@ class RecentCallsDashboard {
             } else if (this.sortColumn === 'status') {
                 aVal = a.http_status || 0;
                 bVal = b.http_status || 0;
+            } else if (this.sortColumn === 'flight_type') {
+                aVal = (a.is_direct === null || a.is_direct === true) ? 'direct' : 'non-direct';
+                bVal = (b.is_direct === null || b.is_direct === true) ? 'direct' : 'non-direct';
             } else {
                 // String comparison
                 aVal = String(aVal || '').toLowerCase();
@@ -240,7 +249,7 @@ class RecentCallsDashboard {
         const tbody = document.getElementById('callsTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="loading">
+                <td colspan="9" class="loading">
                     <i class="fas fa-spinner"></i>
                     <div>Loading recent API calls...</div>
                 </td>
@@ -252,7 +261,7 @@ class RecentCallsDashboard {
         const tbody = document.getElementById('callsTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="no-data">
+                <td colspan="9" class="no-data">
                     <i class="fas fa-inbox"></i>
                     <div>No API calls found</div>
                     <small>Try making some flight monitoring requests</small>
