@@ -28,6 +28,7 @@ export async function insertFlightMonitoringRecord(data) {
       return_date: data.arrivalDate, // Database uses return_date field name
       is_round_trip: data.isRoundTrip,
       is_long_haul_route: data.isLongHaulRoute,
+      is_direct: data.nonstop === 'Y', // Convert nonstop to boolean: Y=true, N=false
       http_status: data.httpStatus,
       error_message: data.errorMessage,
       raw_request: data.rawRequest // Store the complete request URL
@@ -108,6 +109,12 @@ export async function getFlightMonitoringStats(daysBack = 7) {
       }
     });
 
+    // Flight type statistics (Direct vs Connecting)
+    const directFlights = data.filter(record => record.is_direct === true).length;
+    const connectingFlights = data.filter(record => record.is_direct === false).length;
+    const directSuccessful = data.filter(record => record.is_direct === true && record.http_status >= 200 && record.http_status < 300).length;
+    const connectingSuccessful = data.filter(record => record.is_direct === false && record.http_status >= 200 && record.http_status < 300).length;
+
     // Sort routes by popularity
     const topRoutes = Object.entries(routeStats)
       .map(([route, stats]) => ({
@@ -123,9 +130,13 @@ export async function getFlightMonitoringStats(daysBack = 7) {
       successful,
       failed,
       successRate: parseFloat(successRate),
-      avgElapsedSeconds: parseFloat(avgElapsedSeconds),
-      topRoutes,
-      daysBack
+              avgElapsedSeconds: parseFloat(avgElapsedSeconds),
+        topRoutes,
+        daysBack,
+        directFlights,
+        connectingFlights,
+        directSuccessRate: directFlights > 0 ? (directSuccessful / directFlights * 100).toFixed(1) : 0,
+        connectingSuccessRate: connectingFlights > 0 ? (connectingSuccessful / connectingFlights * 100).toFixed(1) : 0
     };
   } catch (error) {
     console.error('❌ Failed to fetch statistics:', error);
@@ -160,6 +171,9 @@ export async function getFlightRecordsWithFilters(filters = {}) {
     }
     if (filters.isLongHaul !== undefined) {
       query = query.eq('is_long_haul_route', filters.isLongHaul);
+    }
+    if (filters.isDirect !== undefined) {
+      query = query.eq('is_direct', filters.isDirect);
     }
     if (filters.successful !== undefined) {
       if (filters.successful) {
@@ -432,6 +446,7 @@ export async function getRecentApiCalls(limit = 50) {
       return_date: record.return_date,
       is_round_trip: record.is_round_trip,
       is_long_haul_route: record.is_long_haul_route,
+      is_direct: record.is_direct,
       elapsed_seconds: record.elapsed_seconds,
       http_status: record.http_status,
       error_message: record.error_message,
@@ -444,6 +459,7 @@ export async function getRecentApiCalls(limit = 50) {
       dates: formatDatesKST(record.departure_date, record.return_date, record.is_round_trip),
       trip_type: record.is_round_trip ? 'Round Trip' : 'One Way',
       route_type: record.is_long_haul_route ? 'Long Haul' : 'Short Haul',
+      flight_type: (record.is_direct === null || record.is_direct === true) ? 'Direct' : 'Non Direct',
       duration: `${record.elapsed_seconds?.toFixed(1) || 'N/A'} seconds`,
       status_display: formatStatus(record.http_status),
       error_display: record.error_message ? truncateError(record.error_message) : '-',

@@ -53,7 +53,7 @@ function buildFlightSearchUrl(params) {
     childCount = 0,
     infantCount = 0,
     cabinClass = 'Y', // Economy
-    nonstop = 'Y'
+    nonstop = 'Y' // Keep default for backward compatibility
   } = params;
 
   const baseUrl = `${FLIGHT_API_BASE_URL}${API_PATH}`;
@@ -118,6 +118,7 @@ export function generateRandomFlightSearch() {
   const arrivalAirport = getRandomDestination();
   const dates = generateRandomDates();
   const isRoundTrip = Math.random() > 0.3; // 70% chance of round trip
+  const nonstop = Math.random() > 0.3 ? 'N' : 'Y'; // 70% chance of connecting flights
   
   return {
     departureAirport,
@@ -125,7 +126,8 @@ export function generateRandomFlightSearch() {
     departureDate: dates.departure,
     returnDate: isRoundTrip ? dates.return : null,
     isRoundTrip,
-    isLongHaul: isLongHaulRoute(arrivalAirport)
+    isLongHaul: isLongHaulRoute(arrivalAirport),
+    nonstop
   };
 }
 
