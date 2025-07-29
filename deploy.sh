@@ -48,9 +48,14 @@ echo "📁 Creating application directory: $APP_DIR"
 sudo mkdir -p $APP_DIR
 sudo chown $USER:$USER $APP_DIR
 
-# Copy project files
+# Copy project files (excluding .git directory)
 echo "📋 Copying project files..."
-cp -r . $APP_DIR/
+# Create temporary directory and copy files
+TEMP_DIR=$(mktemp -d)
+cp -r . $TEMP_DIR/
+rm -rf $TEMP_DIR/.git $TEMP_DIR/node_modules
+cp -r $TEMP_DIR/* $APP_DIR/
+rm -rf $TEMP_DIR
 cd $APP_DIR
 
 # Install dependencies
